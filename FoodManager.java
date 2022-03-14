@@ -1,6 +1,4 @@
-import java.io.File; // Import the File class
 import java.io.IOException; // Import the IOException class to handle errors
-import java.util.ArrayList;
 import java.io.FileWriter; // Import the FileWriter class
 
 public class FoodManager {
@@ -10,22 +8,22 @@ public class FoodManager {
     static volatile int hotdogOrders, burgerOrders;
     static volatile int hotdogId = 0;
     static volatile int burgerId = 0;
-    //To set the thread names
+    // To set the thread names
     static volatile int burgerPackerId = 0;
     static volatile int hotdogPackerId = 0;
     static volatile int burgerMakerId = 0;
     static volatile int hotdogMakerId = 0;
-    //To help determine if order has been fully fulfilled
+    // To help determine if order has been fully fulfilled
     static volatile int burgerCountPack = 0;
     static volatile int hotdogCountPack = 0;
-    //Boolean to track if there is a packer waiting for a hotdog
+    // Boolean to track if there is a packer waiting for a hotdog
     static volatile boolean oneHotDogWaiting = false;
     static volatile int[] burgerMakerArray;
     static volatile int hotdogMakerArray[];
     static volatile int burgerPackerArray[];
     static volatile int hotdogPackerArray[];
 
-    //Helper function for logging
+    // Helper function for logging
     public static void log(String message) {
         try {
             FileWriter myWriter = new FileWriter("log.txt", true);
@@ -38,7 +36,7 @@ public class FoodManager {
         return;
     }
 
-    //Helper function for logging
+    // Helper function for logging
     public static int sum(int[] array) {
         int sum = 0;
         for (int i = 0; i < array.length; i++) {
@@ -61,8 +59,6 @@ public class FoodManager {
         hotdogMakerArray = new int[numberOfHotdogMakers];
         burgerPackerArray = new int[numberOfBurgerPackers];
         hotdogPackerArray = new int[numberOfHotdogPackers];
-
-        ArrayList<Thread> allThreads = new ArrayList<>();
 
         log("hotdogs:" + hotdogOrders);
         log("burgers:" + burgerOrders);
@@ -127,28 +123,28 @@ public class FoodManager {
                 int localId = ++hotdogPackerId;
                 currentThread.setName("hc" + hotdogPackerId);
 
-                //To store the previous hotdog for logging purposes
+                // To store the previous hotdog for logging purposes
                 Food prevHotdog = null;
                 while (hotdogCountPack < hotdogOrders) {
 
-                    Food hotdog = buffer.getHotd(true, currentThread.getPriority());
+                    Food hotdog = buffer.getHotd(currentThread.getPriority());
                     while (hotdog == null) {
 
-                        //Get out of the infinite loop when done
+                        // Get out of the infinite loop when done
                         if (FoodManager.hotdogCountPack == FoodManager.hotdogOrders) {
                             return;
                         }
 
-                        //Checks if the head is a hotdog
-                        hotdog = buffer.getHotd(true, currentThread.getPriority());
+                        // Checks if the head is a hotdog
+                        hotdog = buffer.getHotd(currentThread.getPriority());
                     }
-                    //Successfully got a hotdog
+                    // Successfully got a hotdog
                     currentHotdogs++;
 
-                    //No previous hotdog
+                    // No previous hotdog
                     if (currentHotdogs % 2 == 1) {
                         prevHotdog = hotdog;
-                        //Priority is used to distinguish which packer can enter
+                        // Priority is used to distinguish which packer can enter
                         currentThread.setPriority(10);
                     } else {
                         log(currentThread.getName() + " gets hotdogs id:" + prevHotdog.id + " from " + prevHotdog.origin
@@ -175,15 +171,15 @@ public class FoodManager {
                 currentThread.setName("bc" + burgerPackerId);
                 while (burgerCountPack < burgerOrders) {
 
-                    //Retrieve from the buffer
-                    Food burger = buffer.get(false);
+                    // Retrieve from the buffer
+                    Food burger = buffer.getBurg();
                     while (burger == null) {
 
-                        //Exit from the infinite loop
+                        // Exit from the infinite loop
                         if (FoodManager.burgerCountPack == FoodManager.burgerOrders) {
                             return;
                         }
-                        burger = buffer.get(false);
+                        burger = buffer.getBurg();
                     }
                     log(currentThread.getName() + " gets burger id:" + burger.id);
                     burgerCountPack++;
@@ -215,7 +211,7 @@ public class FoodManager {
             temp.start();
         }
 
-        //Only summary when all orders fulfilled
+        // Only start summary when all orders fulfilled
         while (sum(hotdogMakerArray) != hotdogOrders || sum(hotdogPackerArray) != hotdogOrders
                 || sum(burgerMakerArray) != burgerOrders || sum(burgerPackerArray) != burgerOrders) {
         }
@@ -288,7 +284,7 @@ class Buffer {
         this.notifyAll();
     }
 
-    public synchronized Food get(boolean isHotdog) {
+    public synchronized Food getBurg() {
 
         while (item_count == 0 && (burgerPacked < FoodManager.burgerOrders)) {
             try {
@@ -302,7 +298,7 @@ class Buffer {
             return null;
         }
         Food food = buffer[front];
-        if ((food instanceof Burger && !isHotdog)) {
+        if ((food instanceof Burger)) {
             front = (front + 1) % buffer.length;
             item_count--;
             burgerPacked++;
@@ -320,8 +316,8 @@ class Buffer {
 
     }
 
-    public synchronized Food getHotd(boolean isHotdog, int priority) {
-        //Only wait if the order is not fully fulfilled and there is no item
+    public synchronized Food getHotd(int priority) {
+        // Only wait if the order is not fully fulfilled and there is no item
         while (item_count == 0 && hotdogPacked < FoodManager.hotdogOrders) {
             try {
                 this.wait();
@@ -329,15 +325,16 @@ class Buffer {
 
             }
         }
-        //Exit if fulfilled
+        // Exit if fulfilled
         if (hotdogPacked == FoodManager.hotdogOrders) {
             this.notifyAll();
             return null;
         }
 
         Food food = buffer[front];
-        //If there is a packer waiting for one hotdog, check the priority. Only give if the priority matches
-        if ((food instanceof Hotdog && isHotdog)
+        // If there is a packer waiting for one hotdog, check the priority. Only give if
+        // the priority matches
+        if ((food instanceof Hotdog)
                 && ((priority == 10 && FoodManager.oneHotDogWaiting) || (!FoodManager.oneHotDogWaiting))) {
             front = (front + 1) % buffer.length;
             item_count--;
